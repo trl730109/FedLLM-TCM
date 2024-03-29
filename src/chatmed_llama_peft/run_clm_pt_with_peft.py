@@ -485,9 +485,16 @@ def main():
 
 
     with training_args.main_process_first(desc="dataset map tokenization and grouping"):
+        '''
         raw_datasets = load_dataset(
             "json",
             data_files=data_args.dataset_name,
+            cache_dir=data_args.dataset_cache_dir,
+            use_auth_token=True if model_args.use_auth_token else None,
+        )
+        '''
+        raw_datasets = load_dataset(
+            "michaelwzhu/ShenNong_TCM_Dataset",
             cache_dir=data_args.dataset_cache_dir,
             use_auth_token=True if model_args.use_auth_token else None,
         )

@@ -11,9 +11,9 @@ results/*
 experiments/*
 assets/*
 tmps/*
-
+resources/*
 wandb/*
-
+data/*
 scripts/*
 
 tmp/*

@@ -1,5 +1,12 @@
-transformers
+transformers==4.38.0
 torch
 peft
 datasets
 deepspeed
+huggingface-hub>=0.19.4
+vllm
+scipy
+scikit-learn
+jieba
+nltk
+rouge_chinese

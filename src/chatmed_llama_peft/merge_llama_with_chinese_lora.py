@@ -13,10 +13,14 @@ import gc
 import torch
 
 import sys
-sys.path.append("./")
-
+sys.path.insert(0, '/home/tangzichen/ChatMed')
 import peft
-from peft import PeftModel
+from peft import LoraModel, PeftModel
+
+
+#import peft
+#from peft import PeftModel
+
 from transformers import LlamaForCausalLM, LlamaTokenizer
 from huggingface_hub import hf_hub_download
 
@@ -201,6 +205,8 @@ if __name__=='__main__':
     output_dir = args.output_dir
     output_type = args.output_type
     offload_dir = args.offload_dir
+    #print(PeftModel.__file__)
+    print(f"Using peft from: {peft.__file__}")
 
     print(f"Base model: {base_model_path}")
     print(f"LoRA model(s) {lora_model_paths}:")
@@ -245,7 +251,8 @@ if __name__=='__main__':
         first_weight = base_model.model.layers[0].self_attn.q_proj.weight
         first_weight_old = first_weight.clone()
 
-        if hasattr(peft.LoraModel,'merge_and_unload'):
+        #if hasattr(peft.LoraModel,'merge_and_unload'):
+        if hasattr(LoraModel,'merge_and_unload'):
             lora_model = PeftModel.from_pretrained(
                 base_model,
                 lora_model_path,

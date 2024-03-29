@@ -5,18 +5,18 @@ lora_trainable="q_proj,v_proj,k_proj,o_proj,gate_proj,down_proj,up_proj"
 modules_to_save="embed_tokens,lm_head"
 lora_dropout=0.1
 pretrained_model="./resources/chinese-llama-alpaca-plus-lora-7b"
-dataset_name="michaelwzhu/ChatMed_Consult_Dataset"
+dataset_name="michaelwzhu/ShenNong_TCM_Dataset"
 dataset_cache_dir="./data/"
 per_device_batch_size=2
 per_device_batch_size=2
 gradient_accumulation_steps=32
 training_steps=20000
-output_dir="./experiments/output/chatmed-llama-7b-pt-v0"
-# deepspeed_config_file="src/chatmed_llama_peft/deepspeed_config_zero3_offload.json"
+output_dir="./output/chatmed-llama-7b-pt-v0"
+deepspeed_config_file="src/chatmed_llama_peft/deepspeed_config_zero3_offload.json"
 
 torchrun \
   --nnodes 1 \
-  --nproc_per_node 4 \
+  --nproc_per_node 8 \
   --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost:12356 \
    src/chatmed_llama_peft/run_clm_pt_with_peft.py \
     --model_name_or_path ${pretrained_model} \
@@ -50,6 +50,5 @@ torchrun \
     --trainable ${lora_trainable} \
     --modules_to_save ${modules_to_save} \
     --lora_dropout ${lora_dropout} \
-    --torch_dtype float16
-
-#   --deepspeed ${deepspeed_config_file} \
+    --torch_dtype float16 \
+    --deepspeed ${deepspeed_config_file} \

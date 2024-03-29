@@ -9,7 +9,8 @@ sys.path.append("./")
 
 from peft import LoraConfig, TaskType, get_peft_model, PeftModel
 
-model_path = "./resources/chinese-llama-alpaca-plus-lora-7b"
+model_path = "/home/tangzichen/ChatMed/resources/Llama-2-7b-hf"
+#model_path = "./resources/chinese-llama-alpaca-plus-lora-7b"
 config = AutoConfig.from_pretrained(
     model_path,
 )
@@ -31,10 +32,10 @@ with torch.no_grad():
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.pad_token_id = tokenizer.eos_token_id
     model.resize_token_embeddings(len(tokenizer))
-
+    print("Basemodel loaded")
     # 加载lora
     # peft_model_path = "resources/ChatMed-Consult_llama_lora_pt_v0"
-    peft_model_path = "michaelwzhu/ChatMed-Consult"
+    peft_model_path = "/home/tangzichen/ChatMed/ChatMed-Consult"
     model = PeftModel.from_pretrained(model, peft_model_path)
     model.eval()
 
@@ -49,7 +50,6 @@ generation_config = dict(
     max_new_tokens=400
 )
 
-from flask import Flask, request
 
 app = Flask(__name__)
 
