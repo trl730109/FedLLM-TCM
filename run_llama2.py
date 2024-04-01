@@ -9,7 +9,7 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(model_dir)
 
     # Explicitly set to use CPU
-    device = torch.device("cpu")
+    device = torch.device("cuda:0")
     print(f"Using device: {device}")
     model.to(device)  # Move model to the CPU
 

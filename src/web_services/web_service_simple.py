@@ -35,7 +35,7 @@ with torch.no_grad():
     print("Basemodel loaded")
     # 加载lora
     # peft_model_path = "resources/ChatMed-Consult_llama_lora_pt_v0"
-    peft_model_path = "/home/tangzichen/ChatMed/ChatMed-Consult"
+    peft_model_path = "/home/tangzichen/ChatMed/resources/chinese-llama-alpaca-plus-lora-7b"
     model = PeftModel.from_pretrained(model, peft_model_path)
     model.eval()
 
