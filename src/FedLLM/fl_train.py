@@ -11,7 +11,8 @@ from typing import Optional, List, Dict, Any, Mapping
 from pathlib import Path
 import datasets
 import torch
-from datasets import load_dataset, concatenate_datasets
+from datasets import load_dataset, concatenate_datasets, load_from_disk
+from fl_utils import *
 
 import transformers
 from nltk.translate.bleu_score import sentence_bleu
@@ -86,7 +87,15 @@ if __name__ == "__main__":
     transformers.utils.logging.set_verbosity(log_level)
     transformers.utils.logging.enable_default_handler()
     transformers.utils.logging.enable_explicit_format()
-    # transformers.tokenization_utils.logging.set_verbosity_warning()
+    
+    #Data loading
+    data_path = "/home/tangzichen/ChatMed/dataset"
+    dataset = load_from_disk(data_path)
+    raw_dataset = dataset['train']
+
+
+    partition_datasets = partition_dataset(raw_dataset, partition_criteria="quantity_skew", num_partitions=10, local_directory=None,concentration=0.5, categories=None)
+    
     for round in range(fl_args.num_rounds):
         logger.info(f"Starting FL Round {round+1}/{fl_args.num_rounds}")
         
@@ -97,10 +106,10 @@ if __name__ == "__main__":
         selected = arr[:int(fl_args.num_clients * fl_args.sample)]
         peft_model_dict = {}
         for client_id in selected:
-            # Train each selected client and collect their model updates
-            # For simplicity, assume train_client returns model weights or updates
-            
-            client_model_or_path = train(client_id, model_args, data_args, training_args)
+            client_str = f"client_{client_id}"
+            local_dataset = partition_datasets[client_str]
+            client_model_or_path = train(client_id, local_dataset, model_args, data_args, training_args)
+
             peft_model_dict[client_id] = get_peft_model_state_dict(client_model_or_path)
         logger.info(f"Finished training {len(selected)} clients")
         # Aggregate the updates collected from clients

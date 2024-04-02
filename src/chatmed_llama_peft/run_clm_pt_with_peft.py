@@ -34,7 +34,7 @@ from typing import Optional, List, Dict, Any, Mapping
 from pathlib import Path
 import datasets
 import torch
-from datasets import load_dataset, concatenate_datasets
+from datasets import load_dataset, concatenate_datasets, load_from_disk, DatasetDict
 
 import transformers
 from nltk.translate.bleu_score import sentence_bleu
@@ -483,6 +483,27 @@ def main():
         result["labels"] = result["input_ids"].copy()
         return result
 
+    def partition_dataset_with_quantity_skew(raw_dataset, num_of_clients, concentration):
+        raw_dataset = raw_dataset.shuffle(seed=42)
+        
+        total_size = len(raw_dataset)
+        partitions = DatasetDict()
+        partition_proportions = np.random.dirichlet(alpha=[concentration] * num_of_clients)
+        
+        start_index = 0
+        for i, proportion in enumerate(partition_proportions):
+            num_samples = int(proportion * total_size)
+            end_index = start_index + num_samples
+            end_index = min(end_index, total_size)
+            partition_dataset = raw_dataset.select(range(start_index, end_index))
+            partition_name = f'client_{i+1}'
+            partitions[partition_name] = partition_dataset
+            
+            start_index = end_index
+        
+        return partitions
+
+
     #Do the data preprocessing here using the datasets mapping function which performs operations in parallel to each datd point
     with training_args.main_process_first(desc="dataset map tokenization and grouping"):
         '''
@@ -493,11 +514,28 @@ def main():
             use_auth_token=True if model_args.use_auth_token else None,
         )
         '''
+        '''
         raw_datasets = load_dataset(
             "michaelwzhu/ShenNong_TCM_Dataset",
             cache_dir=data_args.dataset_cache_dir,
             use_auth_token=True if model_args.use_auth_token else None,
         )
+        '''
+        raw_datasets = load_from_disk("/home/tangzichen/ChatMed/dataset")
+
+        partitions = partition_dataset_with_quantity_skew(raw_datasets['train'], 10, 1)
+        print(partitions['client_1'])
+        for i in range(5):
+            print(partitions['client_1'][i])
+        print("Successfully partition the dataset!!!!!!!!!!!!!!!!!!!!!")
+
+
+        print("The length of the dataset is ", len(raw_datasets['train']))
+        '''
+        for i in range(5):
+            example = raw_datasets['train'][i]  # Access the i-th example
+            print(f"Example {i + 1}: {example}\n")
+        '''
         tokenized_dataset = raw_datasets.map(
                     tokenize_function,
                     batched=True,

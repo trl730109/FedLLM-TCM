@@ -34,7 +34,7 @@ from typing import Optional, List, Dict, Any, Mapping
 from pathlib import Path
 import datasets
 import torch
-from datasets import load_dataset, concatenate_datasets
+from datasets import load_dataset, concatenate_datasets, load_from_disk, DatasetDict
 
 import transformers
 from nltk.translate.bleu_score import sentence_bleu
@@ -153,7 +153,7 @@ class GroupTextsBuilder:
 
 logger = logging.getLogger(__name__)
 
-def train(client_id, model_args, data_args, training_args):
+def train(client_id, local_dataset, model_args, data_args, training_args):
     '''
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, MyTrainingArguments))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
@@ -312,11 +312,7 @@ def train(client_id, model_args, data_args, training_args):
 
     #Do the data preprocessing here using the datasets mapping function which performs operations in parallel to each datd point
     with training_args.main_process_first(desc="dataset map tokenization and grouping"):
-        raw_datasets = load_dataset(
-            "michaelwzhu/ShenNong_TCM_Dataset",
-            cache_dir=data_args.dataset_cache_dir,
-            use_auth_token=True if model_args.use_auth_token else None,
-        )
+        raw_datasets = local_dataset
         tokenized_dataset = raw_datasets.map(
                     tokenize_function,
                     batched=True,
@@ -504,3 +500,68 @@ def train(client_id, model_args, data_args, training_args):
         trainer.save_metrics("eval", metrics)
 
 
+def partition_dataset_with_quantity_skew(raw_dataset, num_of_clients, concentration):
+    raw_dataset = raw_dataset.shuffle(seed=42)
+    
+    total_size = len(raw_dataset)
+    partitions = DatasetDict()
+    partition_proportions = np.random.dirichlet(alpha=[concentration] * num_of_clients)
+    
+    start_index = 0
+    for i, proportion in enumerate(partition_proportions):
+        num_samples = int(proportion * total_size)
+        end_index = start_index + num_samples
+        end_index = min(end_index, total_size)
+        partition_dataset = raw_dataset.select(range(start_index, end_index))
+        partition_name = f'client_{i+1}'
+        partitions[partition_name] = partition_dataset
+        
+        start_index = end_index
+    
+    return partitions
+
+def partition_dataset_with_location(raw_dataset, categories):
+    """
+    Partition a dataset into subsets based on predefined disease location categories.
+
+    Parameters:
+    - raw_dataset: Dataset, the dataset to partition.
+    - categories: dict, a dictionary mapping disease locations to lists of record indices belonging to those locations.
+
+    Returns:
+    - partitions: DatasetDict, a dictionary of partitions where each key corresponds to a disease location category.
+    """
+    partitions = {category: [] for category in categories.keys()}
+
+    for i, record in enumerate(raw_dataset):
+        disease_location = record['disease_location']  # This field needs to exist in your dataset
+        for category, locations in categories.items():
+            if disease_location in locations:
+                partitions[category].append(i)  # Store record index for selection
+
+    # Convert index lists to actual datasets
+    for category, indices in partitions.items():
+        partition_dataset = raw_dataset.select(indices)
+        partitions[category] = partition_dataset
+
+    return DatasetDict(partitions)
+
+def partition_dataset(raw_dataset, partition_criteria='disease_category', num_partitions=10, concentration=0.5, categories=None):
+    """
+    Partition a dataset into multiple subsets based on specified criteria.
+
+    Parameters:
+    - dataset_path_or_name: str, the path to the local dataset directory or the name of the dataset on Hugging Face's datasets hub.
+    - partition_criteria: str, the field name in the dataset records used to determine the partitioning.
+    - num_partitions: int, the number of partitions to divide the dataset into.
+    - local_directory: str, the path to the local directory where the dataset is saved if using a local dataset.
+
+    Returns:
+    - partitions: DatasetDict, a dictionary of partitions where each key corresponds to a partition.
+    """
+    if (partition_criteria == "disease_category"):
+        partitioned_datasets = partition_dataset_with_location(raw_dataset, categories)
+    elif (partition_criteria == "quantity_skew"):
+        partitioned_datasets = partition_dataset_with_quantity_skew(raw_dataset, num_partitions, concentration)
+    
+    return partitioned_datasets 
