@@ -524,9 +524,8 @@ def main():
         raw_datasets = load_from_disk("/home/tangzichen/ChatMed/dataset")
 
         partitions = partition_dataset_with_quantity_skew(raw_datasets['train'], 10, 1)
-        print(partitions['client_1'])
-        for i in range(5):
-            print(partitions['client_1'][i])
+        print("推荐" in partitions['client_1'][1]["query"])
+        print(partitions['client_1'][1]["query"])
         print("Successfully partition the dataset!!!!!!!!!!!!!!!!!!!!!")
 
 
