@@ -36,9 +36,21 @@ python src/web_services/web_service_test.py
 
 上面的脚本主要是运行了test_examples.json文件中提供了测试用例。在使用自己的测试用例时，请注意保持格式一致。
 
+### Lora weight merging with Chinese alpaca models
+
+Download the Lora weights from LlamaChinese-LLaMA-Plus-7B[https://drive.google.com/file/d/1N97m3rBj-rp-J1X8rgRfluyomEscfAq0/view?usp=sharing] and Chinese-Alpaca-Plus-7B[https://drive.google.com/file/d/1EDcTmq6tDmRxqarpapdyDGBE9opY0zrB/view?usp=share_link] to the ./resources directory. 
+
+Run the following command to merge the weights:
+```bash
+python src/chatmed_llama_peft/merge_llama_with_chinese_lora.py \
+    --base_model ./resources/llama-7b-hf \
+    --lora_model ./resources/chinese-llama-plus-lora-7b,./resources/chinese-alpaca-plus-lora-7b \
+    --output_type huggingface \
+    --output_dir ./resources/chinese-llama-alpaca-plus-lora-7b
+```
 ### Fine-tune
 
-首先，大家需要准备好LlaMA-7b底座模型，保存于`resources/chinese-llama-alpaca-plus-lora-7b`路径。数据集采用[中医药指令数据集ChatMed_TCM_Dataset](https://huggingface.co/datasets/michaelwzhu/ShenNong_TCM_Dataset)。我们采用deepspeed实现分布式训练：
+Download LlaMA-7b底座模型，保存于`resources/chinese-llama-alpaca-plus-lora-7b`路径。数据集采用[中医药指令数据集ChatMed_TCM_Dataset](https://huggingface.co/datasets/michaelwzhu/ShenNong_TCM_Dataset)。我们采用deepspeed实现分布式训练：
 
 ```bash
 ./src/chatmed_llama_peft/run_train.sh
