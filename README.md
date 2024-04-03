@@ -64,18 +64,20 @@ Strategy 1: Dirichlet-distribution-based quantity skew: The degree of NIID is ba
 
 Strategy 2: Disease organs or location-based partition: 
 
-| Category                       | Count |
-|--------------------------------|-------|
-| Respiratory System Diseases    | 26,559|
-| Digestive System Diseases      | 44,300|
-| Cardiovascular Diseases        | 28,871|
-| Musculoskeletal Disorders      | 843   |
-| Endocrine Disorders            | 65    |
-| Kidney and Urinary Diseases    | 2,579 |
-| Skin Diseases                  | 1,894 |
-| Traditional Chinese Medicine   | 5,837 |
-| Others                         | 1,617 |
-| Total                          |112,565|
+| Category                       | Count |             | Category                  | Count |
+|--------------------------------|-------|             |---------------------------|-------|
+| Respiratory System Diseases    | 26,559|             | Client1                   | 9,670 |
+| Digestive System Diseases      | 44,300|             | Client2                   | 6,578 |
+| Cardiovascular Diseases        | 28,871|             | Client3                   | 36    |
+| Musculoskeletal Disorders      | 843   |             | Client4                   | 1,4211|
+| Endocrine Disorders            | 65    |             | Client5                   | 1,555 |
+| Kidney and Urinary Diseases    | 2,579 |             | Client6                   | 30,571|
+| Skin Diseases                  | 1,894 |             | Client7                   | 2,228 |
+| Traditional Chinese Medicine   | 5,837 |             | Client8                   | 2,739 |
+| Others                         | 1,617 |             | Client9                   | 22,304|
+                                                       | Client10                  | 22,665|
+    
+| Total                          |112,565|             | Total                     |112,565|
 
 
 
