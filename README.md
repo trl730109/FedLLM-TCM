@@ -58,7 +58,7 @@ Download LlaMA-7b底座模型，保存于`resources/chinese-llama-alpaca-plus-lo
 
 训练脚本中使用的是8张显卡，大家根据自己的服务器情况调整超参数。
 
-### Federated data partition for ChatMed_TCM_Dataset[https://huggingface.co/datasets/michaelwzhu/ShenNong_TCM_Dataset]
+### Federated data partition
 
 Strategy 1: Dirichlet-distribution-based quantity skew: The degree of NIID is based on the concentration hyperparameter.
 
