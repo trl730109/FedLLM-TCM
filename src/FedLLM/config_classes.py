@@ -214,15 +214,19 @@ class MyTrainingArguments(TrainingArguments):
 @dataclass
 class FLTrainingArguments:
     num_clients: int = field(
-        default=5,
+        default=6,
         metadata={"help": "Number of clients participating in the federated learning setup."}
     )
     num_rounds: int = field(
         default=10,
         metadata={"help": "Number of federated learning rounds to perform."}
     )
+    data_partition: Optional[str] = field(
+        default= "quantity_skew",
+        metadata={"help": "Data Partition strategty, choosing from disease_category or quantity skew"}
+    )
     client_fraction: float = field(
-        default=1.0,
+        default=0.5,
         metadata={"help": "Fraction of clients used during each federated learning round."}
     )
     fedavg_aggregation: bool = field(

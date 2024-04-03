@@ -49,17 +49,21 @@ from config_classes import ModelArguments, DataTrainingArguments, MyTrainingArgu
 
 os.environ["WANDB_MODE"] = "disable"
 
+Categories = {
+    "Respiratory System Diseases": ["喘", "呼吸", "肺","鼻","气管","咽喉"],  #呼吸系统疾病
+    "Digestive System Diseases": ["胃", "肠","腹","口","咽","喉","粪便"], #消化系统疾病
+    "Cardiovascular Diseases": ["经络", "心", "中风","血","脉","头"], #心血管疾病
+    "Musculoskeletal Disorders": ["筋", "骨", "髓","风湿"], #肌肉骨骼疾病
+    #"Neurological Disorders": ["阿尔茨海默病", "帕金森病", "多发性硬化症"], #神经系统疾病
+    "Endocrine Disorders": ["糖尿病", "甲状腺疾病", "肾上腺功能减退"], #内分泌失调
+    "Kidney and Urinary Diseases": ["肾", "尿", "精","虚"], #肾脏和泌尿系统疾病
+    #"Liver and Gallbladder Disorders": ["肝炎", "肝硬化", "胆结石"], #肝脏和胆囊疾病
+    "Skin Diseases": ["疹", "癣", "疮","痘","面"], #皮肤病
+    #"Mental and Emotional Disorders": ["抑郁症", "焦虑症", "双相情感障碍"], #精神和情感障碍
+    "Traditional chinese medicine": ["功效","作用","用法","治疗","推荐"],
+    "Others": ["其他疾病"] #其他疾病
+    }
 
-@dataclass
-class MyTrainingArguments(TrainingArguments):
-    trainable : Optional[str] = field(default="q_proj,v_proj")
-    lora_rank : Optional[int] = field(default=8)
-    lora_dropout : Optional[float] = field(default=0.1)
-    lora_alpha : Optional[float] = field(default=32.)
-    modules_to_save : Optional[str] = field(default='embed_tokens,lm_head')
-    debug_mode : Optional[bool] = field(default=False)
-    peft_path : Optional[str] = field(default=None)
-    leraning_rate : Optional[float] = field(default=1e-5)
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +98,7 @@ if __name__ == "__main__":
     raw_dataset = dataset['train']
 
 
-    partition_datasets = partition_dataset(raw_dataset, partition_criteria="quantity_skew", num_partitions=10, local_directory=None,concentration=0.5, categories=None)
+    partition_datasets = partition_dataset(raw_dataset, partition_criteria=fl_args.data_partition, num_partitions=fl_args.num_clients, local_directory=None,concentration=0.5, categories=Categories)
     
     for round in range(fl_args.num_rounds):
         logger.info(f"Starting FL Round {round+1}/{fl_args.num_rounds}")

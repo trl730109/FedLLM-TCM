@@ -69,6 +69,20 @@ from peft import LoraConfig, TaskType, get_peft_model, PeftModel, get_peft_model
 
 os.environ["WANDB_MODE"] = "disable"
 
+Categories = {
+    "Respiratory System Diseases": ["喘", "呼吸", "肺","鼻","气管","咽喉"],  #呼吸系统疾病
+    "Digestive System Diseases": ["胃", "肠","腹","口","咽","喉","粪便"], #消化系统疾病
+    "Cardiovascular Diseases": ["经络", "心", "中风","血","脉","头"], #心血管疾病
+    "Musculoskeletal Disorders": ["筋", "骨", "髓","风湿"], #肌肉骨骼疾病
+    #"Neurological Disorders": ["阿尔茨海默病", "帕金森病", "多发性硬化症"], #神经系统疾病
+    "Endocrine Disorders": ["糖尿病", "甲状腺疾病", "肾上腺功能减退"], #内分泌失调
+    "Kidney and Urinary Diseases": ["肾", "尿", "精","虚"], #肾脏和泌尿系统疾病
+    #"Liver and Gallbladder Disorders": ["肝炎", "肝硬化", "胆结石"], #肝脏和胆囊疾病
+    "Skin Diseases": ["疹", "癣", "疮","痘","面"], #皮肤病
+    #"Mental and Emotional Disorders": ["抑郁症", "焦虑症", "双相情感障碍"], #精神和情感障碍
+    "Traditional chinese medicine": ["功效","作用","用法","治疗","推荐"],
+    "Others": ["其他疾病"] #其他疾病
+    }
 
 def accuracy(predictions, references, normalize=True, sample_weight=None):
         return {
@@ -483,24 +497,22 @@ def main():
         result["labels"] = result["input_ids"].copy()
         return result
 
-    def partition_dataset_with_quantity_skew(raw_dataset, num_of_clients, concentration):
-        raw_dataset = raw_dataset.shuffle(seed=42)
-        
-        total_size = len(raw_dataset)
-        partitions = DatasetDict()
-        partition_proportions = np.random.dirichlet(alpha=[concentration] * num_of_clients)
-        
-        start_index = 0
-        for i, proportion in enumerate(partition_proportions):
-            num_samples = int(proportion * total_size)
-            end_index = start_index + num_samples
-            end_index = min(end_index, total_size)
-            partition_dataset = raw_dataset.select(range(start_index, end_index))
-            partition_name = f'client_{i+1}'
-            partitions[partition_name] = partition_dataset
-            
-            start_index = end_index
-        
+    def partition_dataset_with_location(raw_dataset, categories):
+        partitions = {category: [] for category in categories.keys()}
+        for i, record in enumerate(raw_dataset):
+            query = record["query"]
+            answer = record["response"]
+            for category in categories:
+                if category != "Others":
+                    if any(keyword in query or keyword in answer for keyword in categories[category]):
+                        partitions[category].append(i)
+                        break
+                else:
+                    partitions["Others"].append(i)
+        for category, indices in partitions.items():
+            partition_dataset = raw_dataset.select(indices)
+            partitions[category] = partition_dataset
+
         return partitions
 
 
@@ -523,14 +535,19 @@ def main():
         '''
         raw_datasets = load_from_disk("/home/tangzichen/ChatMed/dataset")
 
-        partitions = partition_dataset_with_quantity_skew(raw_datasets['train'], 10, 1)
-        print("推荐" in partitions['client_1'][1]["query"])
-        print(partitions['client_1'][1]["query"])
+        partitions = partition_dataset_with_location(raw_datasets['train'], categories=Categories)
+        for category in Categories:
+            print("The category is ", category)
+            print(len(partitions[category]))
         print("Successfully partition the dataset!!!!!!!!!!!!!!!!!!!!!")
-
-
-        print("The length of the dataset is ", len(raw_datasets['train']))
         '''
+        #print("The length of the dataset is ", len(raw_datasets['train']))
+        print("Whole record is ")
+        print(raw_datasets["train"][1])
+        print("Query and answer")
+        print(raw_datasets["train"][1]["query"])
+        print(raw_datasets["train"][1]["response"])
+        
         for i in range(5):
             example = raw_datasets['train'][i]  # Access the i-th example
             print(f"Example {i + 1}: {example}\n")

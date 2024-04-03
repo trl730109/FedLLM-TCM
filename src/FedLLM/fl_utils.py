@@ -521,25 +521,11 @@ def partition_dataset_with_quantity_skew(raw_dataset, num_of_clients, concentrat
     return partitions
 
 def partition_dataset_with_location(raw_dataset, categories):
-    categories = {
-    "Respiratory System Diseases": ["喘", "呼吸", "肺","鼻","气管","咽喉"],  #呼吸系统疾病
-    "Digestive System Diseases": ["胃", "肠","腹","口","咽","喉","粪便"], #消化系统疾病
-    "Cardiovascular Diseases": ["经络", "心", "中风","血","脉","头"], #心血管疾病
-    "Musculoskeletal Disorders": ["筋", "骨", "髓","风湿"], #肌肉骨骼疾病
-    #"Neurological Disorders": ["阿尔茨海默病", "帕金森病", "多发性硬化症"], #神经系统疾病
-    "Endocrine Disorders": ["糖尿病", "甲状腺疾病", "肾上腺功能减退"], #内分泌失调
-    "Kidney and Urinary Diseases": ["肾", "尿", "精","虚"], #肾脏和泌尿系统疾病
-    #"Liver and Gallbladder Disorders": ["肝炎", "肝硬化", "胆结石"], #肝脏和胆囊疾病
-    "Skin Diseases": ["疹", "癣", "疮","痘","面"], #皮肤病
-    #"Mental and Emotional Disorders": ["抑郁症", "焦虑症", "双相情感障碍"], #精神和情感障碍
-    "Traditional chinese medicine": ["功效","作用","用法","治疗","推荐"],
-    "Others": ["其他疾病"] #其他疾病
-    }
     partitions = {category: [] for category in categories.keys()}
 
     for i, record in enumerate(raw_dataset):
-        query = record[i]["query"]
-        answer = record[i]["response"]
+        query = record["query"]
+        answer = record["response"]
         for category in categories:
             if category != "Others":
                 if any(keyword in query or keyword in answer for keyword in categories[category]):
@@ -548,7 +534,6 @@ def partition_dataset_with_location(raw_dataset, categories):
             else:
                 partitions["Others"].append(i)
 
-    # Convert index lists to actual datasets
     for category, indices in partitions.items():
         partition_dataset = raw_dataset.select(indices)
         partitions[category] = partition_dataset
@@ -556,18 +541,6 @@ def partition_dataset_with_location(raw_dataset, categories):
     return partitions
 
 def partition_dataset(raw_dataset, partition_criteria='disease_category', num_partitions=10, concentration=0.5, categories=None):
-    """
-    Partition a dataset into multiple subsets based on specified criteria.
-
-    Parameters:
-    - dataset_path_or_name: str, the path to the local dataset directory or the name of the dataset on Hugging Face's datasets hub.
-    - partition_criteria: str, the field name in the dataset records used to determine the partitioning.
-    - num_partitions: int, the number of partitions to divide the dataset into.
-    - local_directory: str, the path to the local directory where the dataset is saved if using a local dataset.
-
-    Returns:
-    - partitions: DatasetDict, a dictionary of partitions where each key corresponds to a partition.
-    """
     if (partition_criteria == "disease_category"):
         partitioned_datasets = partition_dataset_with_location(raw_dataset, categories)
     elif (partition_criteria == "quantity_skew"):
