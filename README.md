@@ -58,6 +58,26 @@ Download LlaMA-7b底座模型，保存于`resources/chinese-llama-alpaca-plus-lo
 
 训练脚本中使用的是8张显卡，大家根据自己的服务器情况调整超参数。
 
+### Federated data partition for ChatMed_TCM_Dataset[https://huggingface.co/datasets/michaelwzhu/ShenNong_TCM_Dataset]
+
+Strategy 1: Dirichlet-distribution-based quantity skew: The degree of NIID is based on the concentration hyperparameter.
+
+Strategy 2: Disease organs or location-based partition: 
+
+| Category                       | Count |
+|--------------------------------|-------|
+| Respiratory System Diseases    | 26,559|
+| Digestive System Diseases      | 44,300|
+| Cardiovascular Diseases        | 28,871|
+| Musculoskeletal Disorders      | 843   |
+| Endocrine Disorders            | 65    |
+| Kidney and Urinary Diseases    | 2,579 |
+| Skin Diseases                  | 1,894 |
+| Traditional Chinese Medicine   | 5,837 |
+| Others                         | 1,617 |
+| Total                          |112,565|
+
+
 
 
 
