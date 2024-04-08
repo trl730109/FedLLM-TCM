@@ -5,6 +5,7 @@ import numpy as np
 import math
 import os
 import sys
+import datetime
 from dataclasses import dataclass, field
 from itertools import chain
 from typing import Optional, List, Dict, Any, Mapping
@@ -13,6 +14,7 @@ import datasets
 import torch
 from datasets import load_dataset, concatenate_datasets, load_from_disk
 from fl_utils import *
+
 
 import transformers
 from nltk.translate.bleu_score import sentence_bleu
@@ -50,19 +52,33 @@ from config_classes import ModelArguments, DataTrainingArguments, MyTrainingArgu
 os.environ["WANDB_MODE"] = "disable"
 
 Categories = {
-    "Respiratory System Diseases": ["喘", "呼吸", "肺","鼻","气管","咽喉"],  #呼吸系统疾病
-    "Digestive System Diseases": ["胃", "肠","腹","口","咽","喉","粪便"], #消化系统疾病
+    "Respiratory System Diseases": ["喘", "呼吸", "肺","鼻","气管","咽喉","咳嗽"],  #呼吸系统疾病
+    "Digestive System Diseases": ["胃", "肠","腹","口","咽","喉","粪便","便"], #消化系统疾病
     "Cardiovascular Diseases": ["经络", "心", "中风","血","脉","头"], #心血管疾病
     "Musculoskeletal Disorders": ["筋", "骨", "髓","风湿"], #肌肉骨骼疾病
     #"Neurological Disorders": ["阿尔茨海默病", "帕金森病", "多发性硬化症"], #神经系统疾病
     "Endocrine Disorders": ["糖尿病", "甲状腺疾病", "肾上腺功能减退"], #内分泌失调
     "Kidney and Urinary Diseases": ["肾", "尿", "精","虚"], #肾脏和泌尿系统疾病
     #"Liver and Gallbladder Disorders": ["肝炎", "肝硬化", "胆结石"], #肝脏和胆囊疾病
-    "Skin Diseases": ["疹", "癣", "疮","痘","面"], #皮肤病
-    #"Mental and Emotional Disorders": ["抑郁症", "焦虑症", "双相情感障碍"], #精神和情感障碍
-    "Traditional chinese medicine": ["功效","作用","用法","治疗","推荐"],
+    "Skin Diseases": ["疹", "癣", "疮","痘","面","肿"], #皮肤病
+    #"Mental and Emotional Disorders": ["抑郁", "焦虑", "神"], #精神和情感障碍
+    "Traditional chinese medicine": ["功效","作用","用法","治疗","推荐","文献"],
     "Others": ["其他疾病"] #其他疾病
     }
+
+def convert_index_to_location(index):
+    categories = [
+    "Respiratory System Diseases",
+    "Digestive System Diseases",
+    "Cardiovascular Diseases",
+    "Musculoskeletal Disorders",
+    "Endocrine Disorders",
+    "Kidney and Urinary Diseases",
+    "Skin Diseases",
+    "Traditional Chinese Medicine",
+    "Others"
+    ]
+    return categories[index]
 
 
 logger = logging.getLogger(__name__)
@@ -96,41 +112,62 @@ if __name__ == "__main__":
     data_path = "/home/tangzichen/ChatMed/dataset"
     dataset = load_from_disk(data_path)
     raw_dataset = dataset['train']
+    num_clients = fl_args.num_clients
+    output_type = 'huggingface'
 
-
-    partition_datasets = partition_dataset(raw_dataset, partition_criteria=fl_args.data_partition, num_partitions=fl_args.num_clients, local_directory=None,concentration=0.5, categories=Categories)
+    partition_datasets = partition_dataset(raw_dataset, partition_criteria=fl_args.data_partition, num_partitions=num_clients, local_directory=None,concentration=0.5, categories=Categories)
     
     for round in range(fl_args.num_rounds):
         logger.info(f"Starting FL Round {round+1}/{fl_args.num_rounds}")
-        
-        # Sample a fraction of clients to participate in this round if client_fraction < 1.0
-        # selected_clients = sample_clients(num_clients=fl_args.num_clients, fraction=fl_args.client_fraction)
-        arr = np.arange(fl_args.num_clients)
+
+        base_model = LlamaForCausalLM.from_pretrained(
+                    model_args.model_name_or_path,
+                    load_in_8bit=False,
+                    torch_dtype=torch.float16,
+                    device_map={"": "cpu"},
+                )
+
+        arr = np.arange(num_clients)
         np.random.shuffle(arr)
-        selected = arr[:int(fl_args.num_clients * fl_args.sample)]
+        selected = arr[:int(num_clients * fl_args.sample)]
         peft_model_dict = {}
         for client_id in selected:
             client_str = f"client_{client_id}"
-            local_dataset = partition_datasets[client_str]
-            client_model_or_path = train(client_id, local_dataset, model_args, data_args, training_args)
+            current_time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_dir = f"./output/FedLLM/{client_str}"
+            peft_model_dict[client_id] = output_dir
 
-            peft_model_dict[client_id] = get_peft_model_state_dict(client_model_or_path)
+            if (fl_args.data_partition == "quantity_skew"):               
+                #client_str = f"client_{client_id}"
+                local_dataset = partition_datasets[client_str]
+            elif (fl_args.data_partition == "disease_category"):
+                assert num_clients < 9, "Currently only support 9 kinds of diseases."
+                local_dataset = partition_datasets[convert_index_to_location(client_id)]
+
+            train(client_id, local_dataset, model_args, data_args, training_args, fl_args, output_dir)
+
+        updated_model = model_merging(model_args.model_name_or_path, peft_model_dict, len(selected))
+        base_model.load_state_dict(updated_model)
         logger.info(f"Finished training {len(selected)} clients")
-        # Aggregate the updates collected from clients
-        # Assume aggregate_updates is a function that implements FedAvg or other aggregation methods
-        #TODO Aggregate the model updates and store it for next communication round
-        aggregated_updates = aggregate_updates(peft_model_dict, aggregation_method=fl_args.aggregation_method)
         
+        if output_type=='huggingface':
+            print("Saving to Hugging Face format...")
+            LlamaForCausalLM.save_pretrained(base_model, output_dir) #, state_dict=deloreanized_sd)
+            '''
+        else: # output_type=='pth
+            print("Saving to pth format...")
 
-        #TODO Merge the model updates to store in a specified path
-        global_model = apply_aggregated_updates(global_model, aggregated_updates)
-        
-        if fl_args.eval_every_round:
-            #TODO Perform model evaluation after each round or in specific rounds
-            eval_metrics = evaluate_model(global_model)
-            print(f"Evaluation metrics after round {round+1}: {eval_metrics}")
-        
-        # Optionally save the global model based on the save_strategy
-        if fl_args.save_strategy == "all_rounds" or (fl_args.save_strategy == "end" and round == fl_args.num_rounds - 1):
-            #TODO Save the global model to a specified path
-            save_model(global_model, round)
+            base_model_sd = base_model.state_dict()
+            del lora_model, base_model, lora_model_sd
+
+            params = params_of_models[model_size]
+            num_shards = num_shards_of_models[model_size]
+            n_layers = params["n_layers"]
+            n_heads = params["n_heads"]
+            dim = params["dim"]
+            dims_per_head = dim // n_heads
+            base = 10000.0
+            inv_freq = 1.0 / (base ** (torch.arange(0, dims_per_head, 2).float() / dims_per_head))
+
+            save_shards(model_sd=base_model_sd, num_shards=num_shards)
+        '''

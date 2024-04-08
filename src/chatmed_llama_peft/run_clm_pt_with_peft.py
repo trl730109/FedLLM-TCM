@@ -535,23 +535,11 @@ def main():
         '''
         raw_datasets = load_from_disk("/home/tangzichen/ChatMed/dataset")
 
-        partitions = partition_dataset_with_location(raw_datasets['train'], categories=Categories)
-        for category in Categories:
-            print("The category is ", category)
-            print(len(partitions[category]))
-        print("Successfully partition the dataset!!!!!!!!!!!!!!!!!!!!!")
-        '''
-        #print("The length of the dataset is ", len(raw_datasets['train']))
-        print("Whole record is ")
-        print(raw_datasets["train"][1])
-        print("Query and answer")
-        print(raw_datasets["train"][1]["query"])
-        print(raw_datasets["train"][1]["response"])
-        
-        for i in range(5):
-            example = raw_datasets['train'][i]  # Access the i-th example
-            print(f"Example {i + 1}: {example}\n")
-        '''
+        #partitions = partition_dataset_with_location(raw_datasets['train'], categories=Categories)
+        #for category in Categories:
+        #    print("The category is ", category)
+        #    print(len(partitions[category]))
+        #print("Successfully partition the dataset!!!!!!!!!!!!!!!!!!!!!")
         tokenized_dataset = raw_datasets.map(
                     tokenize_function,
                     batched=True,
@@ -648,6 +636,7 @@ def main():
             # device_map="auto",
             # low_cpu_mem_usage=True
         ).half()
+        print("Load the model from specified name or path!")
     else:
         model = AutoModelForCausalLM.from_config(config)
         n_params = sum({p.data_ptr(): p.numel() for p in model.parameters()}.values())
@@ -707,8 +696,11 @@ def main():
         print("*" * 50)
         print("resume_from_checkpoint: ", checkpoint)
         print("*" * 50)
+
+            
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
-        trainer.save_model()
+        #trainer.save_model()
+        trainer.model.save_pretrained(training_args.output_dir,safe_serialization=False)
 
         metrics = train_result.metrics
 

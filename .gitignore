@@ -19,7 +19,8 @@ dataset/*
 tmp/*
 datasets/*
 data/*
-
+output/*
+offload/*
 *.log
 
 *.wav

@@ -35,6 +35,7 @@ from pathlib import Path
 import datasets
 import torch
 from datasets import load_dataset, concatenate_datasets, load_from_disk, DatasetDict
+from huggingface_hub import hf_hub_download
 
 import transformers
 from nltk.translate.bleu_score import sentence_bleu
@@ -66,6 +67,7 @@ from sklearn.metrics import accuracy_score
 import  sys
 sys.path.append("./")
 
+import peft
 from peft import LoraConfig, TaskType, get_peft_model, PeftModel, get_peft_model_state_dict
 
 os.environ["WANDB_MODE"] = "disable"
@@ -153,7 +155,7 @@ class GroupTextsBuilder:
 
 logger = logging.getLogger(__name__)
 
-def train(client_id, local_dataset, model_args, data_args, training_args):
+def train(client_id, local_dataset, model_args, data_args, training_args, fl_args):
     '''
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, MyTrainingArguments))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
@@ -540,6 +542,9 @@ def partition_dataset_with_location(raw_dataset, categories):
 
     return partitions
 
+def transpose(weight, fan_in_fan_out):
+    return weight.T if fan_in_fan_out else weight
+
 def partition_dataset(raw_dataset, partition_criteria='disease_category', num_partitions=10, concentration=0.5, categories=None):
     if (partition_criteria == "disease_category"):
         partitioned_datasets = partition_dataset_with_location(raw_dataset, categories)
@@ -547,3 +552,51 @@ def partition_dataset(raw_dataset, partition_criteria='disease_category', num_pa
         partitioned_datasets = partition_dataset_with_quantity_skew(raw_dataset, num_partitions, concentration)
     
     return partitioned_datasets 
+
+
+def model_merging(base_model, lora_model_path_dict, number_of_clients):
+    '''
+    tokenizer = LlamaTokenizer.from_pretrained(base_model_path)
+    if base_model.get_input_embeddings().weight.size(0) != len(tokenizer):
+        base_model.resize_token_embeddings(len(tokenizer))
+        print(f"Extended vocabulary size to {len(tokenizer)}")
+    '''
+    first_weight = base_model.model.layers[0].self_attn.q_proj.weight
+    first_weight_old = first_weight.clone()
+
+    base_model_sd = base_model.state_dict()
+    for key, value in lora_model_path_dict.items():
+        print(f"Loading LoRA {value}")
+        try:
+            lora_model_sd = torch.load(os.path.join(value,'adapter_model.bin'),map_location='cpu')
+        except FileNotFoundError:
+            print("Cannot find lora model on the disk. Downloading lora model from hub...")
+            filename = hf_hub_download(repo_id=value,filename='adapter_model.bin')
+            lora_model_sd = torch.load(filename,map_location='cpu')
+
+        lora_config = peft.LoraConfig.from_pretrained(value)
+        lora_scaling = lora_config.lora_alpha / lora_config.r
+        fan_in_fan_out = lora_config.fan_in_fan_out
+        lora_keys = [k for k in lora_model_sd if 'lora_A' in k]
+        non_lora_keys = [k for k in lora_model_sd if not 'lora_' in k]
+
+        for k in non_lora_keys:
+            print(f"merging {k}")
+            original_k = k.replace('base_model.model.','')
+            base_model_sd[original_k].copy_(lora_model_sd[k])
+
+        for k in lora_keys:
+            print(f"merging {k}")
+            original_key = k.replace('.lora_A','').replace('base_model.model.','')
+            assert original_key in base_model_sd
+            lora_a_key = k
+            lora_b_key = k.replace('lora_A','lora_B')
+            base_model_sd[original_key] += (
+                (transpose(lora_model_sd[lora_b_key].float() @ lora_model_sd[lora_a_key].float(),fan_in_fan_out) * lora_scaling) / number_of_clients
+            )
+            assert base_model_sd[original_key].dtype == torch.float16
+
+            # did we do anything?
+            assert not torch.allclose(first_weight_old, first_weight)
+        print(f"Finish merging the client {key} from {value}")
+    return base_model_sd

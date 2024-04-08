@@ -12,7 +12,7 @@ per_device_batch_size=2
 gradient_accumulation_steps=32
 #training_steps=20000
 training_steps=105
-output_dir="./output/chatmed-llama-7b-pt-v0"
+output_dir="./output/tcm_lora_v0"
 deepspeed_config_file="src/chatmed_llama_peft/deepspeed_config_zero3_offload.json"
 
 torchrun \
