@@ -53,7 +53,7 @@ def generate_text(prompt, tokenizer, model, max_length=50, num_return_sequences=
     Returns:
     - generated_texts: A list of generated text sequences.
     """
-    input_ids = tokenizer.encode(prompt, return_tensors="pt")
+    input_ids = tokenizer.encode(prompt, return_tensors="pt").to('cuda:0')
     with torch.no_grad():
         output_sequences = model.generate(
             input_ids=input_ids,
@@ -71,43 +71,32 @@ def generate_text(prompt, tokenizer, model, max_length=50, num_return_sequences=
 if __name__ == "__main__":
     #print(peft.__file__)
     #print(sys.path)
-    lora_model_dir = "/home/tangzichen/ChatMed/output/chatmed-llama-7b-pt-v0"
+    lora_model_dir = "/home/tangzichen/ChatMed/output/chatmed-llama-7b-pt-v1"
     base_model_path = "/home/tangzichen/ChatMed/resources/Llama-2-7b-hf"
     tokenizer = LlamaTokenizer.from_pretrained(base_model_path)
     base_model = LlamaForCausalLM.from_pretrained(
             base_model_path,
             load_in_8bit=False,
             torch_dtype=torch.float16,
-            device_map={"": "cpu"},
+            device_map={"": "cuda:0"},
         )
-    '''
-    base_model = LlamaForCausalLM.from_pretrained(
-            base_model_path,
-            load_in_8bit=False,
-            torch_dtype=torch.float16,
-            offload_folder="./offload",
-            offload_state_dict=True,
-            low_cpu_mem_usage=True,
-            device_map={"": "cpu"},
-        )
-    '''
+
     lora_model = PeftModel.from_pretrained(
                 base_model,
                 lora_model_dir,
-                device_map={"": "cpu"},
+                device_map={"": "cuda:0"},
                 torch_dtype=torch.float16,
             )
     print("Lora model loaded.")
     print(f"Merging with merge_and_unload...")
-    #base_model = lora_model.merge_and_unload()
+    base_model = lora_model.merge_and_unload()
     #model = PeftModel.from_pretrained(base_model, lora_model_dir)
     print("Successfully load the fine-tuned model!")
-    '''
+    
     while True:
         prompt = input("Enter your prompt: ")
         if prompt.lower() == 'quit':
             break
-        generated_text = generate_text(prompt, tokenizer, model)
+        generated_text = generate_text(prompt, tokenizer, base_model)
         print("Generated text:", generated_text[0])
     print("Model loaded. Enter 'quit' to exit.")
-    '''

@@ -155,7 +155,8 @@ class GroupTextsBuilder:
 
 logger = logging.getLogger(__name__)
 
-def train(client_id, local_dataset, model_args, data_args, training_args, fl_args):
+
+def train(client_id, local_dataset, model_args, data_args, training_args, fl_args,output_dir):
     '''
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, MyTrainingArguments))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
@@ -196,11 +197,11 @@ def train(client_id, local_dataset, model_args, data_args, training_args, fl_arg
 
     # Detecting last checkpoint.
     last_checkpoint = None
-    if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
-        last_checkpoint = get_last_checkpoint(training_args.output_dir)
-        if last_checkpoint is None and len(os.listdir(training_args.output_dir)) > 0:
+    if os.path.isdir(output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
+        last_checkpoint = get_last_checkpoint(output_dir)
+        if last_checkpoint is None and len(os.listdir(output_dir)) > 0:
             raise ValueError(
-                f"Output directory ({training_args.output_dir}) already exists and is not empty. "
+                f"Output directory ({output_dir}) already exists and is not empty. "
                 "Use --overwrite_output_dir to overcome."
             )
         elif last_checkpoint is not None and training_args.resume_from_checkpoint is None:
@@ -337,7 +338,7 @@ def train(client_id, local_dataset, model_args, data_args, training_args, fl_arg
                     desc=f"Grouping texts in chunks of {block_size}",
                 )
         # processed_dataset = grouped_datasets
-        lm_datasets = grouped_datasets["train"].train_test_split(test_size =0.003)
+        lm_datasets = grouped_datasets.train_test_split(test_size =0.003)
 
     def compute_metrics(eval_preds):
         preds, labels = eval_preds
@@ -471,7 +472,7 @@ def train(client_id, local_dataset, model_args, data_args, training_args, fl_arg
         print("resume_from_checkpoint: ", checkpoint)
         print("*" * 50)
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
-        trainer.save_model()
+        trainer.model.save_pretrained(output_dir,safe_serialization=False)
 
         metrics = train_result.metrics
 

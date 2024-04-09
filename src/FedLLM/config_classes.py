@@ -237,10 +237,7 @@ class FLTrainingArguments:
         default=None,
         metadata={"help": "Maximum number of steps to perform during training on each client per round. None means use all steps available in the client's dataset."}
     )
-    aggregation_method: Optional[str] = field(
-        default="mean",
-        metadata={"help": "Method used to aggregate client models. Options: 'mean', 'median', etc.", "choices": ["mean", "median"]}
-    )
+
     eval_every_round: bool = field(
         default=False,
         metadata={"help": "Whether to perform evaluation on a validation set every round."}
@@ -253,7 +250,4 @@ class FLTrainingArguments:
         default=None,
         metadata={"help": "Path to the PEFT model to be used for initial weights before federated training begins."}
     )
-    save_strategy: Optional[str] = field(
-        default="no",
-        metadata={"help": "Strategy to save model checkpoints. Options: 'no', 'end', 'all_rounds'.", "choices": ["no", "end", "all_rounds"]}
-    )
+    output_type : Optional[str] = field(dafault="huggingface",metadata={"help":"Whether to save mode as huggingface format or pth format."})

@@ -86,8 +86,6 @@ logger = logging.getLogger(__name__)
 if __name__ == "__main__":
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, MyTrainingArguments, FLTrainingArguments))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
-        # If we pass only one argument to the script and it's the path to a json file,
-        # let's parse it to get our arguments.
         model_args, data_args, training_args, fl_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
     else:
         model_args, data_args, training_args, fl_args = parser.parse_args_into_dataclasses()
@@ -96,9 +94,7 @@ if __name__ == "__main__":
         level=logging.INFO,  # if training_args.local_rank in [-1, 0] else logging.WARN,
         handlers=[logging.StreamHandler(sys.stdout)],)
 
-
     if training_args.should_log:
-        # The default of training_args.log_level is passive, so we set log level at info here to have that default.
         transformers.utils.logging.set_verbosity_info()
 
     log_level = training_args.get_process_log_level()
@@ -108,32 +104,32 @@ if __name__ == "__main__":
     transformers.utils.logging.enable_default_handler()
     transformers.utils.logging.enable_explicit_format()
     
-    #Data loading
     data_path = "/home/tangzichen/ChatMed/dataset"
     dataset = load_from_disk(data_path)
     raw_dataset = dataset['train']
+    
     num_clients = fl_args.num_clients
-    output_type = 'huggingface'
+    num_participated_clients = int(num_clients * fl_args.client_fraction)
+    output_type = fl_args.output_type
 
     partition_datasets = partition_dataset(raw_dataset, partition_criteria=fl_args.data_partition, num_partitions=num_clients, local_directory=None,concentration=0.5, categories=Categories)
     
     for round in range(fl_args.num_rounds):
         logger.info(f"Starting FL Round {round+1}/{fl_args.num_rounds}")
-
         base_model = LlamaForCausalLM.from_pretrained(
                     model_args.model_name_or_path,
                     load_in_8bit=False,
                     torch_dtype=torch.float16,
                     device_map={"": "cpu"},
                 )
-
         arr = np.arange(num_clients)
         np.random.shuffle(arr)
-        selected = arr[:int(num_clients * fl_args.sample)]
+        selected = arr[:num_participated_clients]
         peft_model_dict = {}
+        
         for client_id in selected:
             client_str = f"client_{client_id}"
-            current_time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+            #current_time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_dir = f"./output/FedLLM/{client_str}"
             peft_model_dict[client_id] = output_dir
 
@@ -146,28 +142,10 @@ if __name__ == "__main__":
 
             train(client_id, local_dataset, model_args, data_args, training_args, fl_args, output_dir)
 
-        updated_model = model_merging(model_args.model_name_or_path, peft_model_dict, len(selected))
+        updated_model = model_merging(base_model, peft_model_dict, len(selected))
         base_model.load_state_dict(updated_model)
         logger.info(f"Finished training {len(selected)} clients")
         
-        if output_type=='huggingface':
+        if fl_args.output_type=='huggingface':
             print("Saving to Hugging Face format...")
             LlamaForCausalLM.save_pretrained(base_model, output_dir) #, state_dict=deloreanized_sd)
-            '''
-        else: # output_type=='pth
-            print("Saving to pth format...")
-
-            base_model_sd = base_model.state_dict()
-            del lora_model, base_model, lora_model_sd
-
-            params = params_of_models[model_size]
-            num_shards = num_shards_of_models[model_size]
-            n_layers = params["n_layers"]
-            n_heads = params["n_heads"]
-            dim = params["dim"]
-            dims_per_head = dim // n_heads
-            base = 10000.0
-            inv_freq = 1.0 / (base ** (torch.arange(0, dims_per_head, 2).float() / dims_per_head))
-
-            save_shards(model_sd=base_model_sd, num_shards=num_shards)
-        '''
