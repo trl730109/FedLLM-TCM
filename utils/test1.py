@@ -1,3 +1,11 @@
+import json
+import time
+import torch
+from transformers import AutoConfig, LlamaForCausalLM, LlamaTokenizer, AutoModel, AutoTokenizer
+
+# Load custom components from your paths (ensure they are available in your PYTHONPATH or current directory)
+from peft import LoraConfig, TaskType, get_peft_model, PeftModel
+
 from torch.nn import Linear
 from torch.nn.parameter import Parameter
 
@@ -237,35 +245,26 @@ def quantize(model, weight_bit_width, empty_init=False, **kwargs):
        
     return model
 
-
-
-import json
-import time
-import torch.quantization as quantization
-import torch
-from transformers import AutoConfig, LlamaForCausalLM, LlamaTokenizer, AutoModelForCausalLM, AutoModel
-
-import sys
-sys.path.append("./")
-
-from peft import LoraConfig, TaskType, get_peft_model, PeftModel
-
 model_path = "/home/tangzichen/ChatMed/resources/chinese-llama-alpaca-plus-lora-7b"
 config = AutoConfig.from_pretrained(
     model_path,
 )
+# model_name='THUDM/chatglm3-6b'
+# model = AutoModel.from_pretrained("THUDM/chatglm3-6b", trust_remote_code=True).half().cuda()
+# token
 
-print(config)
+#print(config)
 
+# Setting up the model with appropriate configuration and no web components
 with torch.no_grad():
     torch_dtype = torch.float16
-    model =  LlamaForCausalLM.from_pretrained(
+    model = LlamaForCausalLM.from_pretrained(
         model_path,
         config=config,
         torch_dtype=torch_dtype,
-        # low_cpu_mem_usage=True
     )
-    model = quantize(model, 8).half().cuda()
+    # Quantize and move model to GPU
+    #model = quantize(model, 8).half().cuda()
     tokenizer = LlamaTokenizer.from_pretrained(
         model_path,
     )
@@ -273,72 +272,41 @@ with torch.no_grad():
     tokenizer.pad_token_id = tokenizer.eos_token_id
     model.resize_token_embeddings(len(tokenizer))
 
-    #加载lora
-    peft_model_path = "resources/ChatMed-Consult_llama_lora_pt_v0"
-    peft_model_path = "michaelwzhu/ChatMed-Consult"
-    model = PeftModel.from_pretrained(model, "michaelwzhu/ShenNong-TCM-LLM")
+    # Load PeftModel
+    peft_model_path = 'michaelwzhu/ShenNong-TCM-LLM'
+    # model = PeftModel.from_pretrained(model, peft_model_path)
     model.eval()
+    print("Finish the model deploying.")
 
+# Generate function to produce output from the model
+def generate_response(query, max_new_tokens=256):
+    device = torch.device("cuda")
+    model.to(device)  # Move model to the specified device
 
+    generation_config = {
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "do_sample": True,
+        "repetition_penalty": 1.3,
+        "max_new_tokens": max_new_tokens
+    }
 
-generation_config = dict(
-    temperature=0.2,
-    # top_k=40,
-    top_p=0.9,
-    do_sample=True,
-    num_beams=1,
-    repetition_penalty=1.3,
-    max_new_tokens=400
-)
+    inputs = tokenizer(query, return_tensors="pt", add_special_tokens=False)
+    inputs = {k: v.to(device) for k, v in inputs.items()}  # Ensure inputs are on the same device
 
-from flask import Flask, request
+    print("Final check, input device:", inputs["input_ids"].device)
 
-app = Flask(__name__)
-
-
-@app.route("/chatmed_generate", methods=["POST"])
-def cough_predict():
-    input_data = json.loads(
-        request.get_data().decode("utf-8")
-    )
-
-    query = input_data.get("query")
-    max_new_tokens = input_data.get("max_new_tokens", 256)
-
-    t0 = time.time()
     with torch.no_grad():
-        device = torch.device("cuda")
-        # device = torch.device("cpu")
-        inputs = tokenizer(query, return_tensors="pt", add_special_tokens=False)  # add_special_tokens=False ?
         generation_output = model.generate(
-            input_ids=inputs["input_ids"].to(device),
-            attention_mask=inputs['attention_mask'].to(device),
+            **inputs,
             eos_token_id=tokenizer.eos_token_id,
             pad_token_id=tokenizer.eos_token_id,
             **generation_config
         )
-        s = generation_output[0]
-        print(s)
-        output = tokenizer.decode(s, skip_special_tokens=True)
+    output = tokenizer.decode(generation_output[0], skip_special_tokens=True)
+    return output
 
-        response = output.split("答：\n")[1].strip()
-
-    print(output)
-
-    t1 = time.time()
-    print("time cost: ", t1 - t0)
-
-    return {
-        "query": query,
-        "response": response
-    }
-
-
-app.run(host="0.0.0.0", port=9005, debug=False)
-
-'''
-
-CUDA_VISIBLE_DEVICES=2 python src/web_services/web_service_simple.py
-
-
-'''
+# Example usage
+query = "How to treat the stomache？"
+response = generate_response(query)
+print(response)

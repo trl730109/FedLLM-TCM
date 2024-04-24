@@ -12,14 +12,21 @@ per_device_batch_size=2
 gradient_accumulation_steps=32
 #training_steps=20000
 training_steps=105
-output_dir="./output/tcm_lora_v0"
+final_output_dir="./output/tcm_lora_v0"
 deepspeed_config_file="src/chatmed_llama_peft/deepspeed_config_zero3_offload.json"
+
+client_fraction=0.5
+num_clients=8
+fl_output_dir="./fl_tmp"
+data_partition="quantity_skew"
+num_rounds=1
+output_type='huggingface'
 
 torchrun \
   --nnodes 1 \
   --nproc_per_node 8 \
   --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost:12356 \
-   src/chatmed_llama_peft/run_clm_pt_with_peft.py \
+   src/FedLLM/fl_train.py \
     --model_name_or_path ${pretrained_model} \
     --tokenizer_name_or_path ${pretrained_model} \
     --dataset_name ${dataset_name} \
@@ -43,7 +50,7 @@ torchrun \
     --gradient_accumulation_steps ${gradient_accumulation_steps} \
     --preprocessing_num_workers 8 \
     --block_size 512 \
-    --output_dir ${output_dir} \
+    --output_dir ${final_output_dir} \
     --overwrite_output_dir \
     --ddp_timeout 30000 \
     --logging_first_step True \
@@ -53,3 +60,8 @@ torchrun \
     --lora_dropout ${lora_dropout} \
     --torch_dtype float16 \
     --deepspeed ${deepspeed_config_file} \
+    --num_clients ${num_clients} \
+    --num_rounds 1 \
+    --data_partition ${data_partition} \
+    --fl_out_dir_prefix ${fl_output_dir} \
+    --output_type ${output_type} \

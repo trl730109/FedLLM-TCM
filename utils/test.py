@@ -39,30 +39,19 @@ from peft import LoraConfig, TaskType, get_peft_model, PeftModel, get_peft_model
 
 os.environ["WANDB_MODE"] = "disable"
 
-def generate_text(prompt, tokenizer, model, max_length=50, num_return_sequences=1):
-    """
-    Generate text based on the given prompt.
-
-    Parameters:
-    - prompt: The text prompt to generate text from.
-    - tokenizer: The tokenizer for encoding the input prompt.
-    - model: The model used for generating text.
-    - max_length: The maximum length of the generated text.
-    - num_return_sequences: The number of generated text sequences to return.
-
-    Returns:
-    - generated_texts: A list of generated text sequences.
-    """
+def generate_text(prompt, tokenizer, model, max_length=200,min_length=50, num_return_sequences=1):
     input_ids = tokenizer.encode(prompt, return_tensors="pt").to('cuda:0')
     with torch.no_grad():
         output_sequences = model.generate(
             input_ids=input_ids,
             max_length=max_length,
+            min_length=min_length,
             num_return_sequences=num_return_sequences,
             temperature=1.0,
             top_k=50,
             top_p=0.95,
             repetition_penalty=1.2,
+            no_repeat_ngram_size=2,
         )
     
     generated_texts = [tokenizer.decode(output_sequence, skip_special_tokens=True) for output_sequence in output_sequences]
@@ -71,7 +60,7 @@ def generate_text(prompt, tokenizer, model, max_length=50, num_return_sequences=
 if __name__ == "__main__":
     #print(peft.__file__)
     #print(sys.path)
-    lora_model_dir = "/home/tangzichen/ChatMed/output/chatmed-llama-7b-pt-v1"
+    lora_model_dir = 'michaelwzhu/ShenNong-TCM-LLM'
     base_model_path = "/home/tangzichen/ChatMed/resources/Llama-2-7b-hf"
     tokenizer = LlamaTokenizer.from_pretrained(base_model_path)
     base_model = LlamaForCausalLM.from_pretrained(

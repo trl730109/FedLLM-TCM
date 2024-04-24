@@ -156,39 +156,7 @@ class GroupTextsBuilder:
 logger = logging.getLogger(__name__)
 
 
-def train(client_id, local_dataset, model_args, data_args, training_args, fl_args,output_dir):
-    '''
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, MyTrainingArguments))
-    if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
-        # If we pass only one argument to the script and it's the path to a json file,
-        # let's parse it to get our arguments.
-        model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
-    else:
-        model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-
-    # Sending telemetry. Tracking the example usage helps us better allocate resources to maintain them. The
-    # information sent is the one passed as arguments along with your Python/PyTorch versions.
-    send_example_telemetry("run_clm", model_args, data_args)
-
-    # Setup logging
-    logging.basicConfig(format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",datefmt="%m/%d/%Y %H:%M:%S",
-        level=logging.INFO,  # if training_args.local_rank in [-1, 0] else logging.WARN,
-        handlers=[logging.StreamHandler(sys.stdout)],)
-
-
-    if training_args.should_log:
-        # The default of training_args.log_level is passive, so we set log level at info here to have that default.
-        transformers.utils.logging.set_verbosity_info()
-
-    log_level = training_args.get_process_log_level()
-    logger.setLevel(log_level)
-    datasets.utils.logging.set_verbosity(log_level)
-    transformers.utils.logging.set_verbosity(log_level)
-    transformers.utils.logging.enable_default_handler()
-    transformers.utils.logging.enable_explicit_format()
-    # transformers.tokenization_utils.logging.set_verbosity_warning()
-'''
-    # Log on each process the small summary:
+def train(client_id, local_dataset, model_args, data_args, training_args,output_dir, model):
     logger.warning(
         f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}"
         + f"distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
@@ -197,6 +165,7 @@ def train(client_id, local_dataset, model_args, data_args, training_args, fl_arg
 
     # Detecting last checkpoint.
     last_checkpoint = None
+    logger.info(f"checkpoint detecting is {os.path.isdir(output_dir)}")
     if os.path.isdir(output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
         last_checkpoint = get_last_checkpoint(output_dir)
         if last_checkpoint is None and len(os.listdir(output_dir)) > 0:
@@ -248,7 +217,7 @@ def train(client_id, local_dataset, model_args, data_args, training_args, fl_arg
 
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.pad_token_id = tokenizer.eos_token_id
-
+    logger.info("Finish loading the tokenizer.")
     # Preprocessing the datasets.
     # First we tokenize all the texts.
     # since this will be pickled to avoid _LazyModule error in Hasher force logger loading before tokenize_function
@@ -395,27 +364,27 @@ def train(client_id, local_dataset, model_args, data_args, training_args, fl_arg
         logger.info("training example:")
         logger.info(tokenizer.decode(eval_dataset[0]['input_ids']))
 
-    if model_args.model_name_or_path:
-        torch_dtype = (
-            model_args.torch_dtype
-            if model_args.torch_dtype in ["auto", None]
-            else getattr(torch, model_args.torch_dtype)
-        )
-        model = LlamaForCausalLM.from_pretrained(
-            model_args.model_name_or_path,
-            from_tf=bool(".ckpt" in model_args.model_name_or_path),
-            config=config,
-            cache_dir=model_args.cache_dir,
-            revision=model_args.model_revision,
-            use_auth_token=True if model_args.use_auth_token else None,
-            torch_dtype=torch_dtype,
-            # device_map="auto",
-            # low_cpu_mem_usage=True
-        ).half()
-    else:
-        model = AutoModelForCausalLM.from_config(config)
-        n_params = sum({p.data_ptr(): p.numel() for p in model.parameters()}.values())
-        logger.info(f"Training new model from scratch - Total size={n_params/2**20:.2f}M params")
+    # if model_args.model_name_or_path:
+    #     torch_dtype = (
+    #         model_args.torch_dtype
+    #         if model_args.torch_dtype in ["auto", None]
+    #         else getattr(torch, model_args.torch_dtype)
+    #     )
+    #     model = LlamaForCausalLM.from_pretrained(
+    #         model_args.model_name_or_path,
+    #         from_tf=bool(".ckpt" in model_args.model_name_or_path),
+    #         config=config,
+    #         cache_dir=model_args.cache_dir,
+    #         revision=model_args.model_revision,
+    #         use_auth_token=True if model_args.use_auth_token else None,
+    #         torch_dtype=torch_dtype,
+    #         # device_map="auto",
+    #         # low_cpu_mem_usage=True
+    #     ).half()
+    # else:
+    #     model = AutoModelForCausalLM.from_config(config)
+    #     n_params = sum({p.data_ptr(): p.numel() for p in model.parameters()}.values())
+    #     logger.info(f"Training new model from scratch - Total size={n_params/2**20:.2f}M params")
 
     model.resize_token_embeddings(len(tokenizer))
     if training_args.peft_path is not None:

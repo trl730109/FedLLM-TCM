@@ -218,7 +218,7 @@ class FLTrainingArguments:
         metadata={"help": "Number of clients participating in the federated learning setup."}
     )
     num_rounds: int = field(
-        default=10,
+        default=1,
         metadata={"help": "Number of federated learning rounds to perform."}
     )
     data_partition: Optional[str] = field(
@@ -229,25 +229,27 @@ class FLTrainingArguments:
         default=0.5,
         metadata={"help": "Fraction of clients used during each federated learning round."}
     )
-    fedavg_aggregation: bool = field(
-        default=True,
-        metadata={"help": "Whether to use Federated Averaging for model updates aggregation."}
-    )
-    max_steps_per_round: Optional[int] = field(
-        default=None,
-        metadata={"help": "Maximum number of steps to perform during training on each client per round. None means use all steps available in the client's dataset."}
-    )
 
-    eval_every_round: bool = field(
-        default=False,
-        metadata={"help": "Whether to perform evaluation on a validation set every round."}
+    fl_out_dir_prefix: Optional[str] = field(
+        default="./fl_tmp",
+        metadata={"help": "The folder directory to temporally store the funetuned lora weights for clients."}
     )
-    learning_rate: Optional[float] = field(
-        default=1e-5,
-        metadata={"help": "Learning rate for the optimizer."}
-    )
-    peft_path: Optional[str] = field(
-        default=None,
-        metadata={"help": "Path to the PEFT model to be used for initial weights before federated training begins."}
-    )
-    output_type : Optional[str] = field(dafault="huggingface",metadata={"help":"Whether to save mode as huggingface format or pth format."})
+    
+    output_type : Optional[str] = field(default="huggingface",metadata={"help":"Whether to save mode as huggingface format or pth format."})
+    # fedavg_aggregation: bool = field(
+    #     default=True,
+    #     metadata={"help": "Whether to use Federated Averaging for model updates aggregation."}
+    # )
+    # max_steps_per_round: Optional[int] = field(
+    #     default=None,
+    #     metadata={"help": "Maximum number of steps to perform during training on each client per round. None means use all steps available in the client's dataset."}
+    # )
+
+    # eval_every_round: bool = field(
+    #     default=False,
+    #     metadata={"help": "Whether to perform evaluation on a validation set every round."}
+    # )
+    # peft_path: Optional[str] = field(
+    #     default=None,
+    #     metadata={"help": "Path to the PEFT model to be used for initial weights before federated training begins."}
+    # )

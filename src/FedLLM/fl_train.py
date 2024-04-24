@@ -46,7 +46,7 @@ import  sys
 sys.path.append("./")
 
 from peft import LoraConfig, TaskType, get_peft_model, PeftModel, get_peft_model_state_dict
-from ChatMed.src.FedLLM.fl_utils import train
+from fl_utils import *
 from config_classes import ModelArguments, DataTrainingArguments, MyTrainingArguments, FLTrainingArguments
 
 os.environ["WANDB_MODE"] = "disable"
@@ -112,26 +112,46 @@ if __name__ == "__main__":
     num_participated_clients = int(num_clients * fl_args.client_fraction)
     output_type = fl_args.output_type
 
-    partition_datasets = partition_dataset(raw_dataset, partition_criteria=fl_args.data_partition, num_partitions=num_clients, local_directory=None,concentration=0.5, categories=Categories)
-    
+    partition_datasets = partition_dataset(raw_dataset, partition_criteria=fl_args.data_partition, num_partitions=num_clients, concentration=0.5, categories=Categories)
+    logger.info("Finish the data partition.")
     for round in range(fl_args.num_rounds):
         logger.info(f"Starting FL Round {round+1}/{fl_args.num_rounds}")
+        torch_dtype = (
+            model_args.torch_dtype
+            if model_args.torch_dtype in ["auto", None]
+            else getattr(torch, model_args.torch_dtype)
+        )
+        config_kwargs = {
+        "cache_dir": model_args.cache_dir,
+        "revision": model_args.model_revision,
+        "use_auth_token": True if model_args.use_auth_token else None,
+        }
+        config = AutoConfig.from_pretrained(model_args.model_name_or_path, **config_kwargs)
+
         base_model = LlamaForCausalLM.from_pretrained(
-                    model_args.model_name_or_path,
-                    load_in_8bit=False,
-                    torch_dtype=torch.float16,
-                    device_map={"": "cpu"},
-                )
+            model_args.model_name_or_path,
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=config,
+            cache_dir=model_args.cache_dir,
+            revision=model_args.model_revision,
+            use_auth_token=True if model_args.use_auth_token else None,
+            torch_dtype=torch_dtype,
+        ).half()
+        print("Load the model from specified name or path!")
+        logger.info(f"Load the base model for round {round}.")
         arr = np.arange(num_clients)
         np.random.shuffle(arr)
         selected = arr[:num_participated_clients]
+        logger.info(f"The selected clients are {selected}.")
         peft_model_dict = {}
         
         for client_id in selected:
             client_str = f"client_{client_id}"
-            #current_time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_dir = f"./output/FedLLM/{client_str}"
+            current_time_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_dir = f"./{fl_args.fl_out_dir_prefix}/{current_time_str}/{client_str}"
+            # output_dir = f"./output/FedLLM/{client_str}"
             peft_model_dict[client_id] = output_dir
+            logger.info(f"PEFT storing path is {output_dir}.")
 
             if (fl_args.data_partition == "quantity_skew"):               
                 #client_str = f"client_{client_id}"
@@ -140,7 +160,9 @@ if __name__ == "__main__":
                 assert num_clients < 9, "Currently only support 9 kinds of diseases."
                 local_dataset = partition_datasets[convert_index_to_location(client_id)]
 
-            train(client_id, local_dataset, model_args, data_args, training_args, fl_args, output_dir)
+            logger.info(f"Start the training for {client_str}")
+            train(client_id, local_dataset, model_args, data_args, training_args, output_dir, base_model)
+            logger.info(f"Finish training for {client_str}.")
 
         updated_model = model_merging(base_model, peft_model_dict, len(selected))
         base_model.load_state_dict(updated_model)
