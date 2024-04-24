@@ -260,15 +260,11 @@ def train(client_id, local_dataset, model_args, data_args, training_args,output_
                 f"({tokenizer.model_max_length}). Using block_size={tokenizer.model_max_length}."
             )
         block_size = min(data_args.block_size, tokenizer.model_max_length)
-
+    logger.info("Finish processing the block-size.")
     # Main data processing function that will concatenate all texts from our dataset and generate chunks of block_size.
     def group_texts(examples):
         # Concatenate all texts.
         concatenated_examples = {k: list(chain(*examples[k])) for k in examples.keys()}
-
-        # for input_ids in concatenated_examples["input_ids"]:
-        #     print(input_ids)
-
         total_length = len(concatenated_examples[list(examples.keys())[0]])
         # We drop the small remainder, we could add padding if the model supported it instead of this drop, you can
         # customize this part to your needs.
@@ -281,7 +277,7 @@ def train(client_id, local_dataset, model_args, data_args, training_args,output_
         }
         result["labels"] = result["input_ids"].copy()
         return result
-
+    logger.info("Start processign the dataset processing.")
     #Do the data preprocessing here using the datasets mapping function which performs operations in parallel to each datd point
     with training_args.main_process_first(desc="dataset map tokenization and grouping"):
         raw_datasets = local_dataset
@@ -292,23 +288,23 @@ def train(client_id, local_dataset, model_args, data_args, training_args,output_
                     remove_columns=["query", "response"],
                     load_from_cache_file=False,
                     keep_in_memory=False,
-                    cache_file_names = {k: os.path.join(data_args.dataset_cache_dir, f'tokenized.arrow') for k in raw_datasets},
+                    # cache_file_names = {k: os.path.join(data_args.dataset_cache_dir, f'tokenized.arrow') for k in raw_datasets},
                     desc="Running tokenizer on dataset",
                 )
         print("tokenized_dataset: ", tokenized_dataset)
-
+        logger.info("Tokenize the dataset.")
         grouped_datasets = tokenized_dataset.map(
                     group_texts,
                     batched=True,
                     num_proc=data_args.preprocessing_num_workers,
                     load_from_cache_file=True,
                     keep_in_memory=False,
-                    cache_file_names = {k: os.path.join(data_args.dataset_cache_dir, f'grouped.arrow') for k in tokenized_dataset},
+                    #cache_file_names = {k: os.path.join(data_args.dataset_cache_dir, f'grouped.arrow') for k in tokenized_dataset},
                     desc=f"Grouping texts in chunks of {block_size}",
                 )
         # processed_dataset = grouped_datasets
         lm_datasets = grouped_datasets.train_test_split(test_size =0.003)
-
+        logger.info("Finish processing the dataset.")
     def compute_metrics(eval_preds):
         preds, labels = eval_preds
         if isinstance(preds, tuple):

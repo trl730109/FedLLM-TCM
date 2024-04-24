@@ -159,7 +159,7 @@ if __name__ == "__main__":
             elif (fl_args.data_partition == "disease_category"):
                 assert num_clients < 9, "Currently only support 9 kinds of diseases."
                 local_dataset = partition_datasets[convert_index_to_location(client_id)]
-
+            logger.info(f"Datasets examples are {local_dataset[0]}")
             logger.info(f"Start the training for {client_str}")
             train(client_id, local_dataset, model_args, data_args, training_args, output_dir, base_model)
             logger.info(f"Finish training for {client_str}.")
