@@ -274,7 +274,7 @@ with torch.no_grad():
 
     # Load PeftModel
     peft_model_path = 'michaelwzhu/ShenNong-TCM-LLM'
-    # model = PeftModel.from_pretrained(model, peft_model_path)
+    model = PeftModel.from_pretrained(model, peft_model_path)
     model.eval()
     print("Finish the model deploying.")
 
@@ -307,6 +307,6 @@ def generate_response(query, max_new_tokens=256):
     return output
 
 # Example usage
-query = "How to treat the stomache？"
+query = "如何治疗胃病"
 response = generate_response(query)
 print(response)

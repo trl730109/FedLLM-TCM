@@ -148,10 +148,10 @@ if __name__ == "__main__":
         for client_id in selected:
             client_str = f"client_{client_id}"
             current_time_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_dir = f"./{fl_args.fl_out_dir_prefix}/{current_time_str}/{client_str}"
+            output_dir = f"{fl_args.fl_out_dir_prefix}/{current_time_str}/{client_str}"
             # output_dir = f"./output/FedLLM/{client_str}"
-            peft_model_dict[client_id] = output_dir
-            logger.info(f"PEFT storing path is {output_dir}.")
+            peft_model_dict[client_str] = output_dir
+            logger.info(f"PEFT storing path for {client_str} is {output_dir}.")
 
             if (fl_args.data_partition == "quantity_skew"):               
                 #client_str = f"client_{client_id}"

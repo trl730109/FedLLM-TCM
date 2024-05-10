@@ -26,6 +26,7 @@ import logging
 import jieba
 import numpy as np
 import math
+import copy
 import os
 import sys
 from dataclasses import dataclass, field
@@ -156,7 +157,10 @@ class GroupTextsBuilder:
 logger = logging.getLogger(__name__)
 
 
-def train(client_id, local_dataset, model_args, data_args, training_args,output_dir, model):
+def train(client_id, local_dataset, model_args, data_args, training_args_overall,output_dir, model):
+    training_args = copy.deepcopy(training_args_overall)
+    training_args.max_steps = math.ceil(len(local_dataset)/512)
+    logger.info()
     logger.warning(
         f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}"
         + f"distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
@@ -481,7 +485,7 @@ def partition_dataset_with_quantity_skew(raw_dataset, num_of_clients, concentrat
         end_index = start_index + num_samples
         end_index = min(end_index, total_size)
         partition_dataset = raw_dataset.select(range(start_index, end_index))
-        partition_name = f'client_{i+1}'
+        partition_name = f'client_{i}'
         partitions[partition_name] = partition_dataset
         
         start_index = end_index
@@ -519,6 +523,37 @@ def partition_dataset(raw_dataset, partition_criteria='disease_category', num_pa
     
     return partitioned_datasets 
 
+#using hte inherent merge_and_upload function to merge the file.
+def model_merging_new(base_model, lora_model_path_dict, number_of_clients):
+    ## infer the model size from the checkpoint
+    embedding_size = base_model.get_input_embeddings().weight.size(1)
+    model_size = emb_to_model_size[embedding_size]
+    print(f"Peft version: {peft.__version__}")
+    print(f"Loading LoRA for {model_size} model")
+
+    lora_model = None
+    lora_model_sd = None
+    for lora_index, lora_model_path in enumerate(lora_model_paths):
+        print(f"Loading LoRA {lora_model_path}")
+        tokenizer = LlamaTokenizer.from_pretrained(lora_model_path)
+        if base_model.get_input_embeddings().weight.size(0) != len(tokenizer):
+            base_model.resize_token_embeddings(len(tokenizer))
+            print(f"Extended vocabulary size to {len(tokenizer)}")
+
+        first_weight = base_model.model.layers[0].self_attn.q_proj.weight
+        first_weight_old = first_weight.clone()
+
+        #if hasattr(peft.LoraModel,'merge_and_unload'):
+        if hasattr(LoraModel,'merge_and_unload'):
+            lora_model = PeftModel.from_pretrained(
+                base_model,
+                lora_model_path,
+                device_map={"": "cpu"},
+                torch_dtype=torch.float16,
+            )
+            assert torch.allclose(first_weight_old, first_weight)
+            print(f"Merging with merge_and_unload...")
+            base_model = lora_model.merge_and_unload()
 
 def model_merging(base_model, lora_model_path_dict, number_of_clients):
     '''
